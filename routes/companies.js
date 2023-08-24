@@ -1,6 +1,7 @@
 const express = require("express");
 const router = new express.Router();
 const db = require("../db");
+const slugify = require('slugify');
 
 // Returns a list of companies in object format
 // 'apple' or 'ibm'
@@ -16,12 +17,16 @@ router.get('/', async (req, res, next) => {
 });
 
 // Returns an object of the company. If not found, returns a 404 response.
-// E.g. {code, name, description}
+// E.g. {code, name, description, industries}
 router.get('/:code', async (req, res) => {
     try {
         const results = await db.query(`SELECT code, name, description FROM companies WHERE code=$1`, [req.params.code]);
         if (results.rows.length === 0){
-            return res.status(404).json(`Error: ${req.params.code} can't be found`)
+            return res.status(404).json(`Error: ${req.params.code} can't be found.`)
+        }
+        const industries = await db.query(`SELECT industry_id FROM companies_industries WHERE company_id = $1`, [req.params.code]);
+        if (industries.rows.length !== 0){
+            results.rows[0].industries = industries.rows;
         }
         return res.json(results.rows[0])
     }
@@ -36,7 +41,8 @@ router.post('/', async (req, res, next) => {
     try {
         const { code, name, description } = req.body;
         if (code && name && description){
-            const results = await db.query(`INSERT INTO companies (code, name, description) VALUES ($1, $2, $3) RETURNING *`, [code, name, description]);
+            let newCode = slugify(code);
+            const results = await db.query(`INSERT INTO companies (code, name, description) VALUES ($1, $2, $3) RETURNING *`, [newCode, name, description]);
             return res.json({company: results.rows[0]})
         }
         return res.status(400).json(`Error: incomplete JSON object provided in request.`)
@@ -52,16 +58,15 @@ router.put('/:code', async (req, res, next) => {
     try {
         const { name, description } = req.body;
         if (!name || !description){
-            return res.status(400).json(`Error: incomplete JSON object provided in request.`)
+            return res.status(404).json(`Error: Please provide valid JSON and a valid code.`)
         }
         const results = await db.query(`UPDATE companies SET name=$1, description=$2 WHERE code=$3 RETURNING code, name, description`, [name, description, req.params.code]);
         if (results.rows.length === 0){
-            return res.status(404).json(`Error: ${req.params.code} can't be found`)
+            return res.status(404).json(`Error: ${req.params.code} could not be updated. Please provide valid JSON and a valid code.`)
         }
         return res.json({company: results.rows[0]})
     }
     catch (e) {
-        //return res.status(404).json(`Error: ${req.params.code} can't be found`)
         next(e)
     }
 });
@@ -70,15 +75,13 @@ router.put('/:code', async (req, res, next) => {
 // Returns {status: "deleted"}
 router.delete('/:code', async (req, res, next) => {
     try {
-        const verify = await db.query(`SELECT * FROM companies WHERE code=$1`, [req.params.code]);
-        if(verify.rows.length === 0){
+        const results = await db.query('DELETE FROM companies WHERE code=$1 RETURNING code', [req.params.code]);
+        if (results.rows.length === 0){
             return res.status(404).json(`Error: ${req.params.code} can't be found`)
         }
-        await db.query('DELETE FROM companies WHERE code=$1', [req.params.code]);
         return res.json({status: "deleted"})
     }
     catch (e) {
-        //return res.status(404).json(`Error: ${req.params.code} can't be found`)
         next(e)
     }
 });

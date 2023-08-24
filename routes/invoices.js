@@ -20,7 +20,7 @@ router.get('/:id', async (req, res, next) => {
     try {
         const results = await db.query(`SELECT id, amt, paid, add_date, paid_date, comp_code AS company FROM invoices WHERE id=$1`, [req.params.id]);
         if (results.rows.length == 0){
-            return res.status(404).json(`Error: invoice can't be found`)
+            return res.status(404).json(`Error: invoice can't be found.`)
         }
         let companyCode = results.rows[0].company;
         const companyInformation = await db.query(`SELECT * FROM companies WHERE code=$1`, [companyCode]);
@@ -53,18 +53,25 @@ router.post('/', async (req, res, next) => {
 });
 
 // Updates an invoice if appropriate json is provided and returns updated invoice. If invoice can't be found, returns a 404.
-// {amt} => {invoice: {id, comp_code, amt, paid, add_date, paid_date}}
+// If paid is set to true, sets paid_date to current date, otherwise sets paid_date to null (or as is).
+// {amt, paid} => {invoice: {id, comp_code, amt, paid, add_date, paid_date}}
 router.put('/:id', async (req, res, next) => {
     try {
-        const amt = req.body.amt;
-        if (!amt){
-            return res.status(400).json(`Error: incomplete JSON object provided in request.`);
+        const {amt, paid} = req.body;
+        if(paid === true){
+            const date = new Date();
+            const results = await db.query(`UPDATE invoices SET amt=$1, paid=$2, paid_date=$3 WHERE id=$4 RETURNING id, comp_code, amt, paid, add_date, paid_date`, [amt, paid, date, req.params.id]);
+            if (results.rows.length == 0){
+                return res.status(404).json(`Error: invoice could not be updated. Please provide valid JSON and a valid invoice id.`)
+            }
+            return res.json({invoice: results.rows[0]})
+        } else {
+            const results = await db.query(`UPDATE invoices SET amt=$1 WHERE id=$2 RETURNING id, comp_code, amt, paid, add_date, paid_date`, [amt, req.params.id]);
+            if (results.rows.length == 0){
+                return res.status(404).json(`Error: invoice could not be updated. Please provide valid JSON and a valid invoice id.`)
+            }
+            return res.json({invoice: results.rows[0]})
         }
-        const results = await db.query(`UPDATE invoices SET amt=$1 WHERE id=$2 RETURNING id, comp_code, amt, paid, add_date, paid_date`, [amt, req.params.id]);
-        if (results.rows.length == 0){
-            return res.status(404).json(`Error: invoice can't be found`)
-        }
-        return res.json({invoice: results.rows[0]})
     }
     catch (e) {
         next(e)
@@ -77,7 +84,7 @@ router.delete('/:id', async (req, res, next) => {
     try {
         const verify = await db.query(`SELECT * FROM invoices WHERE id=$1`, [req.params.id]);
         if(verify.rows.length == 0){
-            return res.status(404).json(`Error: invoice can't be found`)
+            return res.status(404).json(`Error: invoice can't be found.`)
         }
         await db.query('DELETE FROM invoices WHERE id=$1', [req.params.id]);
         return res.json({status: "deleted"})
@@ -93,7 +100,7 @@ router.get('/companies/:code', async (req, res, next) => {
     try {
         const results = await db.query(`SELECT * FROM companies WHERE code=$1`, [req.params.code]);
         if(results.rows.length == 0){
-            return res.status(404).json(`Error: ${req.params.code} can't be found`)
+            return res.status(404).json(`Error: ${req.params.code} can't be found.`)
         }
         const allInvoices = await db.query(`SELECT * FROM invoices WHERE comp_code=$1`, [req.params.code]);
         if(allInvoices.rows.length == 0){

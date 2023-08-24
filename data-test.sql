@@ -1,4 +1,4 @@
-\c biztime
+\c biztime_test
 
 DROP TABLE IF EXISTS companies_industries;
 DROP TABLE IF EXISTS industries;
@@ -26,26 +26,7 @@ CREATE TABLE industries (
   description text NOT NULL
 );
 
-INSERT INTO companies
-  VALUES ('apple', 'Apple Computer', 'Maker of OSX.'),
-         ('ibm', 'IBM', 'Big blue.');
-
-INSERT INTO invoices (comp_Code, amt, paid, paid_date)
-  VALUES ('apple', 100, false, null),
-         ('apple', 200, false, null),
-         ('apple', 300, true, '2018-01-01'),
-         ('ibm', 400, false, null);
-
-INSERT INTO industries
-  VALUES ('tech', 'produces and manufactures technology'),
-         ('famous', 'well known brand');
-
 CREATE TABLE companies_industries (
-    company_id text REFERENCES companies (code),
-    industry_id text REFERENCES industries (industry)
+    company_id text REFERENCES companies (code) ON DELETE CASCADE,
+    industry_id text REFERENCES industries (industry) ON DELETE CASCADE
 );
-
-INSERT INTO companies_industries
-  VALUES ('apple', 'tech'),
-         ('apple', 'famous'),
-         ('ibm', 'tech');
